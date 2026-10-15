@@ -27,6 +27,7 @@ body{background:var(--bg);color:var(--fg);font-family:var(--f-body);margin:0}
 #plan{position:absolute;inset:0;display:none;background:#fff;z-index:2;touch-action:none;cursor:grab}
 #plan svg{width:100%;height:100%;display:block}
 #planbar{position:absolute;left:max(12px,env(safe-area-inset-left,0px));right:12px;top:52px;z-index:3;display:none;flex-direction:column;gap:6px;pointer-events:none}
+#planbar .chips{pointer-events:auto;align-self:flex-start}
 #planbar .card{pointer-events:auto;background:color-mix(in srgb,var(--panel) 94%,transparent);border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:.8rem;line-height:1.45;max-width:560px}
 aside{background:var(--panel);border-left:1px solid var(--line);overflow:auto;padding-block:18px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:20px}
 h1{font-family:var(--f-disp);font-weight:700;font-size:1.35rem;margin:0;text-wrap:balance;letter-spacing:-.01em}
@@ -468,7 +469,7 @@ function drawPlan(refit){
   mkChip(pf,'Pavimento tipo (1º ao 3º)',planFloor==='P',()=>{planFloor='P';drawPlan(false);}).style.background='var(--panel)';
   const rr=M.quant.find(x=>x.bloco===b.name),pv=rr.pav[planFloor==='T'?0:1];
   $('pcard').style.maxWidth=Math.min(560,$('view').clientWidth-40)+'px';
-  $('pcard').innerHTML='<b>'+pl.title+'</b>'+(blockFilter==='all'?' · mostrando o Bloco 1 (escolha outro bloco ao lado)':' · '+b.name.replace('BLOCO','Bloco'))+'<br>'+
+  $('pcard').innerHTML='<b>'+pl.title+'</b>'+(blockFilter==='all'?' · mostrando o Bloco 1 (troque o bloco em "Bloco")':' · '+b.name.replace('BLOCO','Bloco'))+'<br>'+
     '<span class="sw" style="background:var(--fach)"></span> Laranja: fachada, soma <b>'+f2(pv.ext_len)+' m</b> × '+f2(pv.h_ext)+' m = '+f1(pv.ext_bruta)+' m² brutos.<br>'+
     '<span class="sw" style="background:var(--circ)"></span> Vermelho: circulação, soma <b>'+f2(pv.circ_len)+' m</b>.<br>'+
     '<span class="long" style="color:var(--muted)">Cada número é o comprimento do trecho em metros; confira com as cotas da prancha (em cm). As linhas foram desenhadas sobre a própria prancha, na escala 1:50.</span>';
