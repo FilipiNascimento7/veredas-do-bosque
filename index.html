@@ -57,6 +57,12 @@ tr.on td{background:color-mix(in srgb,var(--accent) 14%,transparent)}
 .check b{color:var(--ok)}
 .link{color:var(--accent);text-decoration:underline;cursor:pointer;background:none;border:0;padding:0;font:inherit}
 .scroll{overflow-x:auto}
+.frm{border-bottom:1px solid var(--line);padding:7px 0;font-size:.8rem;line-height:1.5;font-variant-numeric:tabular-nums}
+.frm b{font-weight:600}.frm .eq{color:var(--muted)}.frm .res{font-weight:700;float:right}
+.frm.tot{border-top:2px solid var(--fg);border-bottom:0;font-weight:700}
+.zoombtn{position:absolute;right:12px;bottom:12px;z-index:3;display:none;flex-direction:column;gap:6px}
+.zoombtn button{width:40px;height:40px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--fg);font:600 1.1rem var(--f-body);cursor:pointer}
+@media (max-width:600px){#pcard .long{display:none}.tile .val{font-size:1.25rem}}
 @media (max-width:860px){.app{grid-template-columns:1fr;grid-template-rows:62vh auto;height:auto}aside{border-left:none;border-top:1px solid var(--line)}}
 </style>
 <div class="app">
@@ -64,7 +70,8 @@ tr.on td{background:color-mix(in srgb,var(--accent) 14%,transparent)}
     <div class="tabs" id="tabs"></div>
     <div id="plan"><svg id="psvg" xmlns="http://www.w3.org/2000/svg"></svg></div>
     <div id="planbar"><div class="chips" id="pfloor"></div><div class="card" id="pcard"></div></div>
-    <div class="hint" id="hint">arraste: girar · scroll: zoom · botão direito: mover</div>
+    <div class="zoombtn" id="zb"><button id="zin" aria-label="Aproximar">+</button><button id="zout" aria-label="Afastar">−</button><button id="zfit" aria-label="Enquadrar" style="font-size:.7rem">fit</button></div>
+    <div class="hint" id="hint"></div>
   </div>
   <aside>
     <div>
@@ -380,9 +387,13 @@ function mkChip(parent,txt,on,fn){const b=document.createElement('button');b.cla
 const t3=mkChip(tabs,'Modelo 3D',true,()=>setView('3d')), tp=mkChip(tabs,'Plantas de conferência',false,()=>setView('plan'));
 const tcol=mkChip(tabs,'Destacar áreas de pintura',false,()=>{mode=mode==='real'?'classe':'real';tcol.setAttribute('aria-pressed',mode==='classe');
   for(const g of GROUPS) if(meshes[g]) meshes[g].material.color.set(colorOf(g));});
-function setView(v){viewMode=v;t3.setAttribute('aria-pressed',v==='3d');tp.setAttribute('aria-pressed',v==='plan');tcol.style.display=v==='3d'?'':'none';
+const TOUCH=matchMedia('(pointer:coarse)').matches;
+const HINT3D=TOUCH?'1 dedo: girar · pinça: zoom · 2 dedos: mover':'arraste: girar · scroll: zoom · botão direito: mover';
+const HINTPL=TOUCH?'arraste: mover · pinça ou +/−: zoom · números = metros de cada trecho':'arraste: mover · scroll: zoom · números = comprimento de cada trecho (m)';
+$('hint').textContent=HINT3D;
+function setView(v){viewMode=v;$('zb').style.display=v==='plan'?'flex':'none';t3.setAttribute('aria-pressed',v==='3d');tp.setAttribute('aria-pressed',v==='plan');tcol.style.display=v==='3d'?'':'none';
   $('plan').style.display=v==='plan'?'block':'none';$('planbar').style.display=v==='plan'?'flex':'none';
-  $('hint').textContent=v==='plan'?'arraste: mover · scroll: zoom · números = comprimento de cada trecho (m)':'arraste: girar · scroll: zoom · botão direito: mover';
+  $('hint').textContent=v==='plan'?HINTPL:HINT3D;
   if(v==='plan')drawPlan(true);}
 const cuts=$('cuts');[['Completo',99],['Até o 3º pavimento',3],['Até o 1º pavimento',1],['Só o térreo',0]].forEach(([t,v],i)=>{
   const b=mkChip(cuts,t,i===0,()=>{cutLevel=v;cuts.querySelectorAll('.chip').forEach(c=>c.setAttribute('aria-pressed',c===b));refresh();});});
@@ -403,6 +414,19 @@ function panel(){
   if(blockFilter==='all'){memo.innerHTML='<h2>Memória de cálculo</h2><p class="note">Escolha um bloco na lista acima para ver a conta completa, pavimento por pavimento, e a conferência com a planta.</p>';return;}
   const r=rows[0];
   let m='<h2>Memória de cálculo · '+r.bloco.replace('BLOCO','Bloco')+' (Tipo '+r.tipo+')</h2>';
+  const narrow=$('memo').clientWidth<520;
+  if(narrow){ // celular: cada pavimento numa linha de conta, sem tabela larga
+    const L=(p,len,h,br,va,es,liq)=>'<div class="frm"><b>'+p+'</b> <span class="res">'+f1(liq)+' m²</span><br><span class="eq">'+f2(len)+' m × '+h+' m = '+f1(br)+' − '+f1(va)+' vãos + '+f1(es)+' espaletas</span></div>';
+    m+='<h3><span class="sw" style="background:var(--fach)"></span> Paredes externas</h3>';
+    for(const p of r.pav) m+=L(p.nome,p.ext_len,f2(p.h_ext),p.ext_bruta,p.ext_vaos,p.ext_esp,p.ext);
+    m+='<div class="frm">Oitões (empenas acima da última laje) <span class="res">'+f1(r.oitoes)+' m²</span></div>';
+    m+='<div class="frm">Platibandas das varandas (2 faces e topo) <span class="res">'+f1(r.platibandas)+' m²</span></div>';
+    m+='<div class="frm">Requadros das janelas <span class="res">'+f1(r.requadros)+' m²</span></div>';
+    m+='<div class="frm tot">Total paredes externas <span class="res">'+f1(r.fachada_total)+' m²</span></div>';
+    m+='<h3 style="margin-top:14px"><span class="sw" style="background:var(--circ)"></span> Paredes das circulações</h3>';
+    for(const p of r.pav) m+=L(p.nome,p.circ_len,'2,80*',p.circ_bruta,p.circ_vaos,p.circ_esp,p.circ);
+    m+='<div class="frm tot">Total paredes das circulações <span class="res">'+f1(r.circ_total)+' m²</span></div>';
+  } else {
   // fachada
   m+='<h3><span class="sw" style="background:var(--fach)"></span> Paredes externas</h3><div class="scroll"><table><tr><th>Pavimento</th><th>Compr. (m)</th><th>Alt. (m)</th><th>Bruta</th><th>− Vãos</th><th>+ Espal.</th><th>Líquida (m²)</th></tr>';
   for(const p of r.pav) m+='<tr><td>'+p.nome+'</td><td>'+f2(p.ext_len)+'</td><td>'+f2(p.h_ext)+'</td><td>'+f1(p.ext_bruta)+'</td><td>'+f1(p.ext_vaos)+'</td><td>'+f1(p.ext_esp)+'</td><td>'+f1(p.ext)+'</td></tr>';
@@ -414,6 +438,7 @@ function panel(){
   m+='<h3 style="margin-top:14px"><span class="sw" style="background:var(--circ)"></span> Paredes das circulações</h3><div class="scroll"><table><tr><th>Pavimento</th><th>Compr. (m)</th><th>Alt. (m)</th><th>Bruta</th><th>− Vãos</th><th>+ Espal.</th><th>Líquida (m²)</th></tr>';
   for(const p of r.pav) m+='<tr><td>'+p.nome+'</td><td>'+f2(p.circ_len)+'</td><td>2,80*</td><td>'+f1(p.circ_bruta)+'</td><td>'+f1(p.circ_vaos)+'</td><td>'+f1(p.circ_esp)+'</td><td>'+f1(p.circ)+'</td></tr>';
   m+='<tr class="tot"><td colspan="6">Total paredes das circulações</td><td>'+f1(r.circ_total)+'</td></tr></table></div>';
+  }
   m+='<p class="note">* 2,80 m até o forro; as paredes da escada vão até a laje (2,95 m), já consideradas na bruta. Forro da circulação, à parte: '+f1(r.forro_circ)+' m².</p>';
   // conferencia
   m+='<div class="check" style="margin-top:12px"><b>Conferência sem duplicidade.</b> Em cada pavimento, a soma dos trechos de fachada medidos tem de ser igual ao contorno externo das paredes na planta. Se alguma parede fosse contada duas vezes, a soma passaria do contorno.<table style="margin-top:6px"><tr><th>Pavimento</th><th>Contorno (m)</th><th>Soma medida (m)</th><th></th></tr>';
@@ -429,6 +454,11 @@ function panel(){
 // ---------------- plantas de conferencia (prancha original + linhas medidas)
 const svgNS='http://www.w3.org/2000/svg';const psvg=$('psvg');let vb=null,planKey=null;
 function el2(tag,attrs,parent){const e=document.createElementNS(svgNS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);parent.appendChild(e);return e;}
+function fitPlan(im){const W=$('view').clientWidth||800,H=$('view').clientHeight||600;
+  const top=Math.min(H*0.55,($('planbar').offsetHeight||150)+60);   // espaco do cartao em cima
+  const avH=Math.max(120,H-top-20),sc=Math.min((W-20)/im.w,avH/im.h);   // px por metro
+  const w=W/sc,h=H/sc;vb={x:im.x+im.w/2-w/2,y:im.y-(top/sc),w:w,h:h};setVB();}
+function zoomAt(k,fx,fy){const nw=Math.min(200,Math.max(2,vb.w*k)),nh=nw*vb.h/vb.w;vb.x+=(vb.w-nw)*fx;vb.y+=(vb.h-nh)*fy;vb.w=nw;vb.h=nh;setVB();}
 function setVB(){psvg.setAttribute('viewBox',vb.x+' '+vb.y+' '+vb.w+' '+vb.h);}
 function drawPlan(refit){
   const b=M.blocks.find(x=>x.name===blockFilter)||M.blocks[0];const key=b.type+planFloor;const pl=PR.plans[key],im=PR.imgs[pl.sheet];
@@ -438,9 +468,9 @@ function drawPlan(refit){
   const rr=M.quant.find(x=>x.bloco===b.name),pv=rr.pav[planFloor==='T'?0:1];
   $('pcard').style.maxWidth=Math.min(560,$('view').clientWidth-40)+'px';
   $('pcard').innerHTML='<b>'+pl.title+'</b>'+(blockFilter==='all'?' · mostrando o Bloco 1 (escolha outro bloco ao lado)':' · '+b.name.replace('BLOCO','Bloco'))+'<br>'+
-    '<span class="sw" style="background:var(--fach)"></span> Laranja: face externa medida, soma <b>'+f2(pv.ext_len)+' m</b> × '+f2(pv.h_ext)+' m = '+f1(pv.ext_bruta)+' m² brutos.<br>'+
-    '<span class="sw" style="background:var(--circ)"></span> Vermelho: paredes da circulação, soma <b>'+f2(pv.circ_len)+' m</b>.<br>'+
-    '<span style="color:var(--muted)">Cada número é o comprimento do trecho em metros; confira com as cotas da prancha (em cm). As linhas foram desenhadas sobre a própria prancha, na escala 1:50.</span>';
+    '<span class="sw" style="background:var(--fach)"></span> Laranja: fachada, soma <b>'+f2(pv.ext_len)+' m</b> × '+f2(pv.h_ext)+' m = '+f1(pv.ext_bruta)+' m² brutos.<br>'+
+    '<span class="sw" style="background:var(--circ)"></span> Vermelho: circulação, soma <b>'+f2(pv.circ_len)+' m</b>.<br>'+
+    '<span class="long" style="color:var(--muted)">Cada número é o comprimento do trecho em metros; confira com as cotas da prancha (em cm). As linhas foram desenhadas sobre a própria prancha, na escala 1:50.</span>';
   if(planKey!==key||refit){psvg.innerHTML='';
     el2('image',{href:im.src,x:im.x,y:im.y,width:im.w,height:im.h,preserveAspectRatio:'none'},psvg);
     const g=el2('g',{},psvg);
@@ -450,16 +480,20 @@ function drawPlan(refit){
         const t=el2('text',{x:mx,y:my,'font-size':0.3,'text-anchor':'middle','dominant-baseline':'middle',fill:col,'font-family':'IBM Plex Mono, monospace','font-weight':600,
           stroke:'#fff','stroke-width':0.08,'paint-order':'stroke',transform:'rotate('+ang+' '+mx+' '+my+')'},g);t.textContent=f2(s[5]);}}
     planKey=key;
-    const W=$('view').clientWidth||800,H=$('view').clientHeight||600,ar=W/H;let w=im.w*1.05,h=im.h*1.16;if(w/h<ar)w=h*ar;else h=w/ar;
-    vb={x:im.x+im.w/2-w/2,y:im.y+im.h/2-h*0.56,w:w,h:h};setVB();}
+    fitPlan(im);}
+  window.__im=im;
 }
-(function(){const pe=$('plan');let drag=null;
-  pe.addEventListener('wheel',e=>{if(!vb)return;e.preventDefault();const r=pe.getBoundingClientRect();const fx=(e.clientX-r.left)/r.width,fy=(e.clientY-r.top)/r.height;
-    const k=Math.exp(e.deltaY*0.0015);const nw=Math.min(200,Math.max(2,vb.w*k)),nh=nw*vb.h/vb.w;vb.x+=(vb.w-nw)*fx;vb.y+=(vb.h-nh)*fy;vb.w=nw;vb.h=nh;setVB();},{passive:false});
-  pe.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY,vx:vb.x,vy:vb.y};pe.setPointerCapture(e.pointerId);pe.style.cursor='grabbing';});
-  pe.addEventListener('pointermove',e=>{if(!drag)return;const r=pe.getBoundingClientRect();vb.x=drag.vx-(e.clientX-drag.x)*vb.w/r.width;vb.y=drag.vy-(e.clientY-drag.y)*vb.h/r.height;setVB();});
-  const up=()=>{drag=null;pe.style.cursor='grab';};pe.addEventListener('pointerup',up);pe.addEventListener('pointercancel',up);})();
+(function(){const pe=$('plan');const pts=new Map();let last=null,pinch=null;
+  pe.addEventListener('wheel',e=>{if(!vb)return;e.preventDefault();const r=pe.getBoundingClientRect();zoomAt(Math.exp(e.deltaY*0.0015),(e.clientX-r.left)/r.width,(e.clientY-r.top)/r.height);},{passive:false});
+  pe.addEventListener('pointerdown',e=>{pts.set(e.pointerId,{x:e.clientX,y:e.clientY});pe.setPointerCapture(e.pointerId);pe.style.cursor='grabbing';last={x:e.clientX,y:e.clientY};
+    if(pts.size===2){const [a,b]=[...pts.values()];pinch=Math.hypot(a.x-b.x,a.y-b.y);}});
+  pe.addEventListener('pointermove',e=>{if(!pts.has(e.pointerId)||!vb)return;const r=pe.getBoundingClientRect();pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(pts.size>=2){const [a,b]=[...pts.values()];const d=Math.hypot(a.x-b.x,a.y-b.y);if(pinch){zoomAt(pinch/d,((a.x+b.x)/2-r.left)/r.width,((a.y+b.y)/2-r.top)/r.height);}pinch=d;return;}
+    vb.x-=(e.clientX-last.x)*vb.w/r.width;vb.y-=(e.clientY-last.y)*vb.h/r.height;last={x:e.clientX,y:e.clientY};setVB();});
+  const up=e=>{pts.delete(e.pointerId);pinch=null;if(pts.size===1)last={...[...pts.values()][0]};pe.style.cursor='grab';};pe.addEventListener('pointerup',up);pe.addEventListener('pointercancel',up);
+  $('zin').onclick=()=>zoomAt(0.7,0.5,0.55);$('zout').onclick=()=>zoomAt(1/0.7,0.5,0.55);$('zfit').onclick=()=>window.__im&&fitPlan(window.__im);})();
 bg();refresh();resize();frame();panel();
+let _mw=$('memo').clientWidth;new ResizeObserver(()=>{const w=$('memo').clientWidth;if((w<520)!==(_mw<520))panel();_mw=w;}).observe($('memo'));
 (function loop(){ctr.update();{const d=cam.position.distanceTo(ctr.target);const nr=Math.min(5,Math.max(0.05,d/400));if(Math.abs(nr-cam.near)>1e-3){cam.near=nr;cam.updateProjectionMatrix();}}renderer.render(scene,cam);requestAnimationFrame(loop);})();
 </script>
 
